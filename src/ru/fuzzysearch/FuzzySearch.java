@@ -174,7 +174,7 @@ public class FuzzySearch {
 			}
 		}
 
-		final LineChart demo = new LineChart("Teste de Algoritmos", new ArrayList<>(seriesMap.values()));
+		final LineChart demo = new LineChart("Casamento Aproximado de Sequências", new ArrayList<>(seriesMap.values()));
 		demo.pack();
 		RefineryUtilities.centerFrameOnScreen(demo);
 		demo.setVisible(true);
