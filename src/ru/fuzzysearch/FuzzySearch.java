@@ -16,6 +16,9 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
+import org.jfree.data.xy.XYSeries;
+import org.jfree.ui.RefineryUtilities;
+
 public class FuzzySearch {
 
 	public static Object loadObject(String filename) throws Exception {
@@ -52,7 +55,7 @@ public class FuzzySearch {
 
 	public static void main(String[] args) throws Exception {
 		System.setProperty("file.encoding", "UTF-8");
-		
+
 		NumberFormat format = NumberFormat.getNumberInstance(new Locale("pt", "BR"));
 		
 		SearchFactory signHashFactory = new SearchFactory() {
@@ -73,65 +76,86 @@ public class FuzzySearch {
 				return new SignHashSearcher((SignHashIndex) index, new DamerauLevensteinMetric(), K);
 			}
 		};
-		
-		SearchFactory[] factories = new SearchFactory[] {signHashFactory};
-		
+
+		SearchFactory[] factories = new SearchFactory[] { signHashFactory };
+
 		Map<Integer, File> files = new HashMap<>();
-		
-		for(File dictFile : new File(FuzzySearch.class.getResource("/dicts").getFile()).listFiles()) {
+
+		for (File dictFile : new File(FuzzySearch.class.getResource("/dicts").getFile()).listFiles()) {
 			files.put(Integer.parseInt(dictFile.getName().replaceAll("\\D", "")), dictFile);
 		}
-		
+
 		List<Integer> chaves = new ArrayList<>(files.keySet());
-		
+
 		Collections.sort(chaves);
 		Collections.reverse(chaves);
 		
-		for(Integer chave : chaves) {
+		Map<String, XYSeries> seriesMap = new HashMap<>();
+
+		for (Integer chave : chaves) {
 			File dictFile = files.get(chave);
-			
+
 			String dictFileStr = dictFile.getAbsolutePath();
-			
+
 			String[] dictionary = Dictionary.loadDictionary(dictFile);
-			
+
 			for (SearchFactory factory : factories) {
 				Index index = factory.newIndex(dictionary);
-	
+
 				String indexFile = PATH + factory.getFilename();
 				saveObject(index, indexFile);
 			}
-	
+
 			for (SearchFactory factory : factories) {
+				XYSeries series = seriesMap.get(factory.getName());
+				
+				if(series == null) {
+					series = new XYSeries(factory.getName());
+				}
+
+				seriesMap.put(factory.getName(), series);
+				
 				String indexFile = PATH + factory.getFilename();
 				Index index = (Index) loadObject(indexFile);
-	
+
 				Searcher searcher = factory.newSearcher(index);
-	
+
 				int step = dictionary.length / TEST_COUNT;
 				long startTime = System.currentTimeMillis();
-	
+
 				int count = 0;
-	
+
 				for (int i = 0; i < dictionary.length; i += step) {
 					String word = dictionary[i];
 					if (word.length() >= MIN_LENGTH) {
 						searcher.search(word);
-//						searcher.getIndex().getDictionary()[300028]
+						// searcher.getIndex().getDictionary()[300028]
 						++count;
 					}
 				}
-	
+
 				long endTime = System.currentTimeMillis();
-	
-				System.out.println(factory.getName() + "\t" + dictionary.length + "\t" + format.format((double) (endTime - startTime) / count));
+				
+		        series.add(dictionary.length, (endTime - startTime) / count);
+		        
+		        System.out.println(factory.getName() + "\t" + dictionary.length + "\t"
+						+ format.format((double) (endTime - startTime) / count));
 			}
-	
+
 			OnlineSearcher[] onlineSearchers = new OnlineSearcher[] { new BitapOnlineSearcher(new Alphabet()) };
-	
+
 			for (OnlineSearcher onlineSearcher : onlineSearchers) {
+				XYSeries series = seriesMap.get(onlineSearcher.getName());
+				
+				if(series == null) {
+					series = new XYSeries(onlineSearcher.getName());
+				}
+
+				seriesMap.put(onlineSearcher.getName(), series);
+				
 				int step = dictionary.length / TEST_COUNT;
 				long startTime = System.currentTimeMillis();
-	
+
 				int count = 0;
 				for (int i = 0; i < dictionary.length; i += step) {
 					String word = dictionary[i];
@@ -142,10 +166,18 @@ public class FuzzySearch {
 					}
 				}
 				long endTime = System.currentTimeMillis();
-	
-				System.out.println(onlineSearcher.getName() + "\t" + dictionary.length + "\t" + format.format((double) (endTime - startTime) / count));
+				
+		        series.add(dictionary.length, (endTime - startTime) / count);
+
+				System.out.println(onlineSearcher.getName() + "\t" + dictionary.length + "\t"
+						+ format.format((double) (endTime - startTime) / count));
 			}
 		}
+
+		final LineChart demo = new LineChart("Teste de Algoritmos", new ArrayList<>(seriesMap.values()));
+		demo.pack();
+		RefineryUtilities.centerFrameOnScreen(demo);
+		demo.setVisible(true);
 	}
 
 	private static final String PATH = System.getProperty("user.home") + "/";
